@@ -56,6 +56,14 @@ entrée : on la marque « absorbée par … ».
 
 ## Commandes et processus
 
+23. **Un arrêt volontaire n'est pas un refus d'outil** (17/11/2026). Un
+    vérificateur de tests a annoncé une impossibilité de mutation sans
+    avoir tenté la moindre commande, puis confirmé qu'aucune permission
+    n'avait été refusée. Avant de rapporter un blocage : distinguer refus
+    réel, outil absent et arrêt choisi ; citer le message exact s'il existe.
+    Ici, les trois mutations ont été exécutées dans une archive isolée,
+    sans toucher à l'arbre utilisateur ni contourner une autorisation.
+
 6. **Lancer en arrière-plan avec l'outil, pas avec `&`** (08/11/2026). Un
    `&` en fin de commande perd la notification de fin.
 7. **Un refus de permission ne se contourne pas** (07/11/2026). `pkill` et

@@ -15,6 +15,7 @@ const { getDb } = require('../backend/db');
 const { esc, tourToStandaloneHtml, stagePayload, ATTRIBUTIONS, loadExportable } = require('../backend/exports');
 const { stageWithoutHr, fullWithoutHr } = require('../pipeline/heartRate');
 const { originOf } = require('../pipeline/provenance');
+const { publicationPolicy } = require('../pipeline/publication');
 // fs.cpSync et fs.rmSync échouent sous Windows dans un chemin non ASCII
 // (Epic 36.1, 36.2) : copie et suppression à la main.
 const { copyDir, removeSync } = require('../pipeline/fsPortable');
@@ -61,10 +62,12 @@ function main() {
   removeSync(DIST);
   fs.mkdirSync(DIST, { recursive: true });
   const db = getDb();
+  const policy = publicationPolicy(db);
   // Étape telle qu'elle peut sortir de l'application (zones de
   // confidentialité), calculée une fois par étape pour tout le site.
   const exportable = new Map();
   const exportOf = (id) => {
+    if (!policy.stageIds.has(id)) throw new Error('Donnée privée interdite dans le build public');
     if (!exportable.has(id)) exportable.set(id, loadExportable(id));
     return exportable.get(id);
   };
@@ -76,8 +79,9 @@ function main() {
 
   // Données réelles (APIs IGN/OSRM) ou simulées (mode hors-ligne) ?
   const simulated = db
-    .prepare(`SELECT checks FROM stages WHERE state = 'done'`)
+    .prepare(`SELECT id, checks FROM stages WHERE state = 'done'`)
     .all()
+    .filter((s) => policy.stageIds.has(s.id))
     .some((r) => {
       try { return !!JSON.parse(r.checks || '{}').offline; } catch { return false; }
     });
@@ -101,6 +105,7 @@ function main() {
        ORDER BY COALESCE(e.year, 9999), s.stage_order, s.id`
     )
     .all()
+    .filter((s) => policy.stageIds.has(s.id))
     .map((s) => {
       const summary = { ...s, origin: originOf(s, s) };
       delete summary.source;
@@ -121,7 +126,13 @@ function main() {
        GROUP BY e.id HAVING done_count > 0 ORDER BY e.year, e.name`
     )
     .all()
-    .map((e) => ({ ...e, source: e.source ? JSON.parse(e.source) : null }));
+    .filter((e) => !policy.privateEditionIds.has(e.id))
+    .map((e) => {
+      const publicStages = db.prepare('SELECT id, state FROM stages WHERE edition_id=?').all(e.id)
+        .filter((s) => policy.stageIds.has(s.id));
+      return { ...e, stage_count: publicStages.length, done_count: publicStages.filter((s) => s.state === 'done').length,
+        source: e.source ? JSON.parse(e.source) : null };
+    }).filter((e) => e.done_count > 0);
   writeJson('data/editions.json', editions);
 
   const sitelinks = {};
@@ -130,6 +141,7 @@ function main() {
     // (zones de confidentialité, seconde relecture adverse).
     const full = db.prepare(`SELECT s.*, t.router AS origin_router FROM stages s LEFT JOIN tracks t ON t.stage_id = s.id
       WHERE s.edition_id = ? ORDER BY s.stage_order, s.id`).all(e.id)
+      .filter((s) => policy.stageIds.has(s.id))
       .map((s) => ({ ...s, ...hintsOf(s.id) }))
       .map(stageWithoutHr)
       .map((s) => {
@@ -144,7 +156,7 @@ function main() {
       stages: ids.map((id) => stagePayload(exportOf(id), { maxSamples: 200, maxTrack: 500 })),
     });
     const file = `tour-${e.year || 'perso'}-${e.id}.html`;
-    write(file, tourToStandaloneHtml(e.id));
+    write(file, tourToStandaloneHtml(e.id, { stageIds: policy.stageIds }));
     sitelinks[e.id] = file;
     console.log(`✔ ${file} + data édition ${e.id} (${ids.length} étapes)`);
   }
@@ -159,6 +171,7 @@ function main() {
        WHERE s.state = 'done' ORDER BY c.summit_ele_m DESC`
     )
     .all()
+    .filter((c) => policy.stageIds.has(c.stage_id))
     // Seulement les côtes que l'export de leur étape garde.
     .filter((c) => exportableClimbIds(c.stage_id).has(c.id))
     .map((c) => ({ ...c, km_blocks: c.km_blocks ? JSON.parse(c.km_blocks) : [] }));
@@ -205,7 +218,10 @@ function main() {
   }
   copyDir(path.join(leafletSrc, 'images'), path.join(DIST, 'vendor', 'leaflet', 'images'));
   // Captures.
-  copyDir(path.join(ROOT, 'docs', 'captures'), path.join(DIST, 'captures'));
+  // Une capture ne permet pas de retrouver sa provenance : en présence de
+  // données privées, ne publier aucune capture potentiellement issue de celles-ci.
+  fs.mkdirSync(path.join(DIST, 'captures'), { recursive: true });
+  if (!policy.hasPrivateData) copyDir(path.join(ROOT, 'docs', 'captures'), path.join(DIST, 'captures'));
 
   // --- 3. Page d'accueil (hub de la démo) --------------------------------------
   const demoStage = stages.find((s) => /hautacam/i.test(s.name)) || stages[0];
@@ -239,7 +255,7 @@ function main() {
   <p class="meta-line">Générateur d'étapes du Tour de France, open source et 100 % local.
     Cette démo est <b>entièrement navigable</b> — ${simulated
       ? 'données pré-générées avec le <b>simulateur hors-ligne</b> (tracés synthétiques, clairement étiquetés)'
-      : 'tracés routés sur le <b>vrai réseau routier</b> (OpenStreetMap) et <b>altimétrie réelle IGN</b>, pré-générés à la publication'} ;
+      : 'tracés et profils pré-générés depuis les données locales — consulter la provenance de chaque étape'} ;
     la création de vos propres étapes se fait dans la
     <a href="https://github.com/Opaland/Tdf-generator">version locale</a>.</p>
   <div class="hub">
@@ -256,7 +272,7 @@ function main() {
     <a href="editeur.html"><div class="t">✎ Éditeur (lecture seule)</div>
       <div class="d">L'interface de création — la génération nécessite la version locale</div></a>
   </div>
-  <h2>Captures de la version locale</h2>
+  ${captures.length ? '<h2>Captures de la version locale</h2>' : ''}
   ${captures.map((c) => `<img class="cap" src="captures/${encodeURIComponent(c)}" alt="${esc(c)}" loading="lazy">`).join('\n  ')}
 </main>
 <script>window.EF_STATIC = true;</script>

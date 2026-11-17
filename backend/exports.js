@@ -609,7 +609,7 @@ const ATTRIBUTIONS =
   'Données historiques : Wikipédia (CC BY-SA), recoupées avec bikeraceinfo.com';
 
 /** Page HTML autonome d'un tour : profils SVG inline + carte Leaflet (CDN) + données embarquées. */
-function tourToStandaloneHtml(editionId) {
+function tourToStandaloneHtml(editionId, { stageIds = null } = {}) {
   const db = getDb();
   const edition = db.prepare('SELECT * FROM editions WHERE id = ?').get(editionId);
   if (!edition) {
@@ -619,7 +619,8 @@ function tourToStandaloneHtml(editionId) {
   }
   const stageRows = db
     .prepare(`SELECT id FROM stages WHERE edition_id = ? ORDER BY stage_order, id`)
-    .all(editionId);
+    .all(editionId)
+    .filter((r) => stageIds === null || stageIds.has(r.id));
   // loadExportable : une trace rattachée au tour passe par les zones de
   // confidentialité, comme son export d'étape (relecture adverse).
   const payloads = stageRows.map((r) => stagePayload(loadExportable(r.id)));
