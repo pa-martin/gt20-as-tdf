@@ -103,7 +103,7 @@ function stageRow(s) {
       ? `${EF.dec(s.generated_distance_km)} km${delta != null ? ` <span class="meta-line">(${EF.formatDelta(delta)})</span>` : ''}`
       : '—'}</td>
     <td>${EF.stateBadge(s.state, s.checks)} ${s.state === 'generating' && s.progress ? `<span class="meta-line">${EF.esc(s.progress.step || '')} ${Number(s.progress.percent) || 0}%</span>` : ''}</td>
-    <td>${s.state !== 'generating' ? `<button class="secondary" data-gen="${s.id}"${s.state === 'done' ? ` title="Régénérer" aria-label="Régénérer l'étape ${EF.esc(s.name)}"` : ''}>${s.state === 'done' ? '↻' : '▶ Générer'}</button>` : ''}</td>
+    <td>${s.origin?.mode === 'imported' ? `<a class="btn secondary" href="/?id=${s.id}">Modifier les informations</a>` : s.state !== 'generating' ? `<button class="secondary" data-gen="${s.id}"${s.state === 'done' ? ` title="Régénérer" aria-label="Régénérer l'étape ${EF.esc(s.name)}"` : ''}>${s.state === 'done' ? '↻' : '▶ Générer'}</button>` : ''}</td>
   </tr>`;
 }
 
@@ -112,7 +112,7 @@ async function generateAll(editionId, btn) {
   try {
     const ed = await EF.api(`/api/editions/${editionId}`);
     for (const s of ed.stages) {
-      if (s.state === 'done') continue;
+      if (s.state === 'done' || s.origin?.mode === 'imported') continue;
       await EF.api(`/api/stages/${s.id}/generate`, { method: 'POST' });
       // attendre la fin de cette étape avant la suivante (respect des rate limits)
       let state = 'generating';

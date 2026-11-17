@@ -100,6 +100,7 @@ test('provenance GPX cohérente entre résumé, fiche et édition après renomma
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: 'Après', stage_type: 'montagne', status: 'prévue' }),
   });
+
   assert.strictEqual(update.status, 200);
   const row = (await (await fetch(`${base}/api/stages`)).json())[0];
   const full = await (await fetch(`${base}/api/stages/${id}`)).json();
@@ -116,4 +117,38 @@ test('provenance GPX cohérente entre résumé, fiche et édition après renomma
   assert.deepStrictEqual(reroutedEdition.stages[0].origin, { format: 'gpx', mode: 'routed' });
   assert.deepStrictEqual(reroutedFull.stage.origin, reroutedRow.origin);
   assert.deepStrictEqual(reroutedEdition.stages[0].origin, reroutedRow.origin);
+});
+
+test('édition GPX : métadonnées seules, champs absents conservés, null explicite et tracé intact', async () => {
+    const gpx = '<gpx><trk><trkseg>' + Array.from({ length: 60 }, (_, i) =>
+      `<trkpt lat="${45 + i * 0.001}" lon="6"><ele>${300 + i}</ele></trkpt>`).join('') + '</trkseg></trk></gpx>';
+    const imported = await fetch(`${base}/api/import/gpx`, { method: 'POST', headers: { 'Content-Type': 'application/gpx+xml' }, body: gpx });
+    assert.strictEqual(imported.status, 200);
+    const { id } = await imported.json();
+    const db = getDb();
+    const editionId = db.prepare("INSERT INTO editions (name) VALUES ('Tour à détacher')").run().lastInsertRowid;
+    db.prepare("UPDATE stages SET date = '17 juillet 1920', stage_type = 'Type ancien', edition_id = ? WHERE id = ?").run(editionId, id);
+    const before = await (await fetch(`${base}/api/stages/${id}`)).json();
+    const put = (body) => fetch(`${base}/api/stages/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    let res = await put({ name: 'Informations modifiées', status: 'prévue' });
+    assert.strictEqual(res.status, 200);
+    let after = await (await fetch(`${base}/api/stages/${id}`)).json();
+    assert.strictEqual(after.stage.date, before.stage.date);
+    assert.strictEqual(after.stage.stage_type, 'Type ancien');
+    for (const key of ['track', 'samples', 'climbs', 'descents', 'fauxPlats', 'kmAnalysis', 'waypoints']) assert.deepStrictEqual(after[key], before[key], key);
+    for (const key of ['state', 'checks', 'generated_distance_km', 'total_ascent_m', 'source']) assert.deepStrictEqual(after.stage[key], before.stage[key], key);
+    res = await put({ date: null, edition_id: null, status: null, stage_type: '' });
+    assert.strictEqual(res.status, 200);
+    after = await (await fetch(`${base}/api/stages/${id}`)).json();
+    assert.deepStrictEqual([after.stage.date, after.stage.edition_id, after.stage.status], [null, null, null]);
+    assert.strictEqual(after.stage.stage_type, 'Type ancien');
+    assert.strictEqual((await put({ name: {} })).status, 400);
+    assert.strictEqual((await put({ waypoints: [{ label: 'A' }, { label: 'B' }] })).status, 409);
+    assert.strictEqual((await fetch(`${base}/api/stages/${id}/generate`, { method: 'POST' })).status, 409);
+    await assert.rejects(require('../pipeline/generate').generateStage(id), (e) => e.status === 409);
+    const final = await (await fetch(`${base}/api/stages/${id}`)).json();
+    assert.deepStrictEqual(final.track, before.track);
+    assert.deepStrictEqual(final.samples, before.samples);
 });

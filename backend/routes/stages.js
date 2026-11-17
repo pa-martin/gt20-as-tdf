@@ -128,29 +128,35 @@ module.exports = function register(app) {
   app.put('/api/stages/:id', (req, res) => {
     const db = getDb();
     const id = parseInt(req.params.id, 10);
-    const stage = db.prepare('SELECT id FROM stages WHERE id = ?').get(id);
+    const stage = db.prepare('SELECT * FROM stages WHERE id = ?').get(id);
     if (!stage) return res.status(404).json({ error: 'Étape introuvable' });
     // Un PUT pendant la génération était écrasé à la fin (l'étape repassait
     // « done » avec l'ancien tracé) ou faisait échouer la génération par
     // violation de clé étrangère (revue globale du 19/10/2026).
     if (running.has(id)) return res.status(409).json({ error: 'Génération en cours : modifiez l\'étape une fois la génération terminée' });
     const body = req.body || {};
-    const name = optionalString(body.name, 'name', MAX.name);
-    const date = optionalIsoDay(body.date, 'date');
+    const name = Object.hasOwn(body, 'name') ? requireString(body.name, 'name', MAX.name) : stage.name;
+    const date = Object.hasOwn(body, 'date') ? optionalIsoDay(body.date, 'date') : stage.date;
     // '' (sélecteur de l'éditeur sans option correspondante, ex. type
     // Wikipédia brut) ne doit pas effacer le type stocké.
-    const stage_type = optionalString(body.stage_type, 'stage_type', MAX.stage_type) || null;
-    const status = optionalString(body.status, 'status', MAX.status);
-    const edition_id = existingEditionId(getDb(), body.edition_id);
-    const stage_order = optionalNumber(body.stage_order, 'stage_order');
+    const stage_type = Object.hasOwn(body, 'stage_type')
+      ? (body.stage_type === '' ? stage.stage_type : optionalString(body.stage_type, 'stage_type', MAX.stage_type))
+      : stage.stage_type;
+    const status = Object.hasOwn(body, 'status') ? optionalString(body.status, 'status', MAX.status) : stage.status;
+    const edition_id = Object.hasOwn(body, 'edition_id') ? existingEditionId(db, body.edition_id) : stage.edition_id;
+    const stage_order = Object.hasOwn(body, 'stage_order') ? optionalNumber(body.stage_order, 'stage_order') : stage.stage_order;
+    const origin = originOf(stage, db.prepare('SELECT router FROM tracks WHERE stage_id = ?').get(id));
+    if (origin?.mode === 'imported' && Object.hasOwn(body, 'waypoints')) {
+      return res.status(409).json({ error: 'Trace importée : créez une copie pour modifier le routage' });
+    }
     // Waypoints validés AVANT toute écriture, et le tout en une transaction :
     // un waypoint invalide renvoyait 400 après avoir déjà renommé l'étape.
     const waypoints = Array.isArray(body.waypoints) && body.waypoints.length >= 2 ? parseWaypoints(body.waypoints) : null;
     db.transaction(() => {
       db.prepare(
-        `UPDATE stages SET name = COALESCE(?, name), date = COALESCE(?, date),
-           stage_type = COALESCE(?, stage_type), status = COALESCE(?, status),
-           edition_id = COALESCE(?, edition_id), stage_order = COALESCE(?, stage_order),
+        `UPDATE stages SET name = ?, date = ?,
+           stage_type = ?, status = ?,
+           edition_id = ?, stage_order = ?,
            updated_at = datetime('now') WHERE id = ?`
       ).run(name, date, stage_type, status, edition_id, stage_order, id);
       if (waypoints) {
@@ -177,6 +183,29 @@ module.exports = function register(app) {
     const full = loadStageFull(parseInt(req.params.id, 10));
     if (!full) return res.status(404).json({ error: 'Étape introuvable' });
     res.json(full);
+  });
+
+  app.post('/api/stages/:id/reconstruction-copy', (req, res) => {
+    const id = Number(req.params.id);
+    const full = loadStageFull(id);
+    if (!full) throw httpError(404, 'Étape introuvable');
+    if (running.has(id) || full.stage.state === 'generating') throw httpError(409, 'Génération en cours');
+    const coords = full.track?.geojson?.geometry?.coordinates;
+    if (!coords || coords.length < 2) throw httpError(409, 'Aucun tracé à copier');
+    const source = { ...require('../../pipeline/provenance').sourceOf(full.stage), reconstructed_from: id };
+    const db = getDb();
+    const copyId = db.transaction(() => {
+      const copy = db.prepare(`INSERT INTO stages (name, stage_type, edition_id, source, state)
+        VALUES (?, ?, ?, ?, 'draft')`).run(`${full.stage.name.slice(0, 170)} (copie à reconstruire)`,
+        full.stage.stage_type, full.stage.edition_id, JSON.stringify(source)).lastInsertRowid;
+      insertWaypoints(db, copy, [coords[0], coords[coords.length - 1]].map((p, i) => ({
+        label: i ? 'Arrivée' : 'Départ', kind: i ? 'finish' : 'start',
+        lat: p[1], lon: p[0], altitude_hint_m: null, bonus_sec: null,
+        source: 'éditeur', country_hint: null, region_hint: null,
+      })));
+      return copy;
+    })();
+    res.status(201).json({ id: copyId });
   });
 
   // Communes traversées, à la demande (Epic 12, option B) : ~1 requête
@@ -217,6 +246,9 @@ module.exports = function register(app) {
 
   app.post('/api/stages/:id/generate', wrap(async (req, res) => {
     const id = parseInt(req.params.id, 10);
+    const full = loadStageFull(id);
+    if (!full) throw httpError(404, 'Étape introuvable');
+    if (full.stage.origin?.mode === 'imported') throw httpError(409, 'Trace importée conservée : créez une copie à reconstruire');
     if (running.has(id)) return res.status(202).json({ running: true });
     const p = generateStage(id)
       .catch((err) => {

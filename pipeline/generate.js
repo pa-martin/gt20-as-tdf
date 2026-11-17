@@ -134,6 +134,10 @@ async function generateStage(stageId, { onProgress } = {}) {
   const db = getDb();
   const stage = db.prepare('SELECT * FROM stages WHERE id = ?').get(stageId);
   if (!stage) throw new Error(`Étape ${stageId} introuvable`);
+  const existingTrack = db.prepare('SELECT router FROM tracks WHERE stage_id = ?').get(stageId);
+  if (require('./provenance').originOf(stage, existingTrack)?.mode === 'imported') {
+    throw Object.assign(new Error('Trace importée conservée : créez une copie à reconstruire'), { status: 409 });
+  }
   const waypoints = db.prepare('SELECT * FROM waypoints WHERE stage_id = ? ORDER BY idx').all(stageId);
   if (waypoints.length < 2) throw new Error('Il faut au moins deux waypoints (départ et arrivée).');
 
