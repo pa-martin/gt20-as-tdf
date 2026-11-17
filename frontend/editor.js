@@ -352,6 +352,7 @@ async function loadForEdit(id) {
   if (coords?.length) {
     traceLayer = L.polyline(coords.map((c) => [c[1], c[0]]), { color: '#c0392b', weight: 3 }).addTo(map);
     map.fitBounds(traceLayer.getBounds(), { padding: [30, 30] });
+    window.EFLandmarks.mount({ full, map, onChange: (next) => { editingFull = next; } });
   }
 }
 
@@ -367,6 +368,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   markersLayer = L.layerGroup().addTo(map);
 
   map.on('click', async (e) => {
+    if (window.EFLandmarks?.isPicking()) return;
     if (editingFull?.stage.origin?.mode === 'imported' || window.EF_STATIC) return;
     // Un clic sur une copie du monde donne une longitude hors [-180, 180]
     // (359,6 au lieu de -0,4), que le serveur refuse.

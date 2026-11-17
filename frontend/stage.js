@@ -17,6 +17,7 @@ function toPayload(full) {
   return {
     stage: full.stage,
     waypoints: full.waypoints,
+    landmarks: full.landmarks,
     climbs: full.climbs,
     kmAnalysis: full.kmAnalysis,
     profile: decimate(full.samples, 900).map((s) => ({
@@ -277,6 +278,7 @@ function setupProfileMapHover(payload, map) {
 }
 
 function renderFiche() {
+  window.EFLandmarks.display(FULL, document.getElementById('landmarks-list'));
   document.getElementById('loading').style.display = 'none';
   document.getElementById('fiche').style.display = 'block';
   const st = FULL.stage;
@@ -566,6 +568,9 @@ function renderFiche() {
     }
   }
 
+  for (const p of FULL.landmarks || []) if (!p.stale && PROFILE_MAP) {
+    L.circleMarker([p.lat, p.lon], { radius: 5, color: '#145c81' }).bindTooltip(EF.esc(p.label)).addTo(PROFILE_MAP);
+  }
   // Exports.
   if (window.EF_STATIC) {
     document.getElementById('exp-json').href = `data/stage-${stageId}.json`;

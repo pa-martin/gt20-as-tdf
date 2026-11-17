@@ -85,7 +85,8 @@ function maskStage(full, zones) {
   const removed = full.samples.filter(hidden).map((sm) => sm.dist_m);
   const hiddenWaypoint = (full.waypoints || []).some((w) => w.lat != null && hidden(w));
   const hiddenCoordinate = Array.isArray(coords) && coords.some(([lon, lat]) => hidden({ lat, lon }));
-  if (!removed.length && !hiddenWaypoint && !hiddenCoordinate && zones !== null) return full;
+  const hiddenLandmark = (full.landmarks || []).some(hidden);
+  if (!removed.length && !hiddenWaypoint && !hiddenCoordinate && !hiddenLandmark && zones !== null) return full;
   // Portion [aM, bM] recouvrant au moins un échantillon masqué.
   const touches = (aM, bM) => removed.some((d) => d >= aM && d <= bM);
   const byKm = (a, b) => (row) => !touches(Number(row[a]) * 1000, Number(row[b]) * 1000);
@@ -103,6 +104,7 @@ function maskStage(full, zones) {
     stage: startHidden ? { ...full.stage, city_hint: null, region_hint: null, country_hint: null } : full.stage,
     samples: full.samples.filter((p) => !hidden(p)),
     waypoints: (full.waypoints || []).filter((w) => w.lat == null || !hidden(w)),
+    landmarks: (full.landmarks || []).filter((p) => !hidden(p)),
     climbs,
     pain: climbs.length === (full.climbs || []).length ? full.pain : null,
     descents: (full.descents || []).filter(byKm('start_km', 'end_km')),

@@ -81,9 +81,17 @@ function nearestSample(samples, targetM) {
   return best;
 }
 
+function exportWaypoints(full) {
+  return [...(full.waypoints || []), ...(full.landmarks || []).filter((p) => !p.stale).map((p) => ({
+    ...p, altitude_hint_m: p.profile_ele_m,
+    description: `${p.expected_ele_m == null ? '' : `Altitude attendue : ${p.expected_ele_m} m. `}${p.source || ''}`,
+  }))];
+}
+
 /** GPX 1.1 du tracé (points d'altimétrie : lat/lon/ele brute). */
 function stageToGpx(full) {
-  const { stage, samples, waypoints, climbs } = full;
+  const { stage, samples, climbs } = full;
+  const waypoints = exportWaypoints(full);
   // Sommets des côtes détectées inclus comme waypoints nommés (catégorie + pente).
   const climbWpts = (climbs || [])
     .map((c) => {
@@ -109,7 +117,7 @@ function stageToGpx(full) {
     .filter((w) => w.lat != null)
     .map((w) => {
       const ele = Number.isFinite(w.altitude_hint_m) ? `\n    <ele>${w.altitude_hint_m}</ele>` : '';
-      return `  <wpt lat="${w.lat}" lon="${w.lon}">${ele}\n    <name>${esc(w.label)}</name>\n    <type>${esc(w.kind)}</type>\n  </wpt>`;
+      return `  <wpt lat="${w.lat}" lon="${w.lon}">${ele}\n    <name>${esc(w.label)}</name>${w.description ? `\n    <desc>${esc(w.description)}</desc>` : ''}\n    <type>${esc(w.kind)}</type>\n  </wpt>`;
     })
     .concat(climbWpts ? [climbWpts] : [])
     .join('\n');
@@ -159,7 +167,8 @@ function tcxToken(s, n) {
  * pour rester croissant et proportionnel à la distance plutôt qu'une
  * valeur figée qui casserait l'ordre attendu par certains lecteurs. */
 function stageToTcx(full) {
-  const { stage, samples, waypoints, climbs, track } = full;
+  const { stage, samples, climbs, track } = full;
+  const waypoints = exportWaypoints(full);
   // Date de l'étape seulement si c'est un vrai jour AAAA-MM-JJ : l'import
   // Wikipédia écrit le texte brut quand il ne sait pas la lire
   // (pipeline/importer.js, dateIso || dateText), et `new Date('18 juillet
@@ -182,7 +191,7 @@ function stageToTcx(full) {
     .map((w) => {
       const idx = samples.length ? nearestSampleIdx(w, samples, cursor) : -1;
       if (idx >= 0) cursor = idx;
-      const distM = idx >= 0 ? samples[idx].dist_m : 0;
+      const distM = Number.isFinite(w.dist_m) ? w.dist_m : idx >= 0 ? samples[idx].dist_m : 0;
       const pointType = w.kind === 'col' ? 'Summit' : 'Generic';
       // Même trouvaille que côté GPX (voir stageToGpx ci-dessus) : les
       // CoursePoint de côtes portent déjà <AltitudeMeters> plus bas, ceux
@@ -193,7 +202,7 @@ function stageToTcx(full) {
         `      <Time>${timeAt(distM)}</Time>\n` +
         `      <Position><LatitudeDegrees>${w.lat}</LatitudeDegrees><LongitudeDegrees>${w.lon}</LongitudeDegrees></Position>${altitude}\n` +
         `      <PointType>${pointType}</PointType>\n` +
-        `      <Notes>${esc(w.label)}</Notes>\n` +
+        `      <Notes>${esc(w.label)}${w.description ? ` — ${esc(w.description)}` : ''}</Notes>\n` +
         `    </CoursePoint>` };
     })
     .concat(
@@ -264,7 +273,8 @@ ${coursePoints}
  * donc pas de troncature ni de champ obligatoire à synthétiser ici.
  */
 function stageToKml(full) {
-  const { stage, samples, waypoints, climbs } = full;
+  const { stage, samples, climbs } = full;
+  const waypoints = exportWaypoints(full);
   // Altitude omise quand elle manque (règle 10) plutôt qu'un 0 m de repli.
   const coordTuple = (lat, lon, ele) => (Number.isFinite(ele) ? `${lon},${lat},${ele}` : `${lon},${lat}`);
   // Sans <altitudeMode>, la valeur par défaut KML (clampToGround) IGNORE
@@ -298,7 +308,7 @@ function stageToKml(full) {
       (w) =>
         `    <Placemark>\n` +
         `      <name>${esc(w.label)}</name>\n` +
-        `      <description>${esc(w.kind)}</description>\n` +
+        `      <description>${esc(w.kind)}${w.description ? ` — ${esc(w.description)}` : ''}</description>\n` +
         `      <Point>${altitudeModeTag(w.altitude_hint_m)}<coordinates>${coordTuple(w.lat, w.lon, w.altitude_hint_m)}</coordinates></Point>\n` +
         `    </Placemark>`
     )
@@ -357,6 +367,7 @@ function stagePayload(full, { maxSamples = 600, maxTrack = 900 } = {}) {
       label: w.label, kind: w.kind, lat: w.lat, lon: w.lon, approximated: !!w.approximated,
       bonus_sec: w.bonus_sec || null,
     })),
+    landmarks: (full.landmarks || []).filter((p) => !p.stale),
     track: track
       ? {
           coords: decimate(track.geojson.geometry.coordinates, maxTrack),
@@ -452,10 +463,11 @@ function stageToRoadbookHtml(stageId) {
     err.status = 404;
     throw err;
   }
-  const { stage, edition, waypoints, climbs, samples } = full;
+  const { stage, edition, climbs, samples } = full;
+  const waypoints = exportWaypoints(full);
 
   let fromIdx = 0;
-  const lastWp = waypoints[waypoints.length - 1];
+  const lastWp = full.waypoints[full.waypoints.length - 1];
   const points = waypoints
     .filter((w) => w.lat != null)
     .map((w) => {
@@ -463,9 +475,9 @@ function stageToRoadbookHtml(stageId) {
       if (i >= 0) fromIdx = i;
       const s = i >= 0 ? samples[i] : null;
       return {
-        distM: s ? s.dist_m : 0,
-        ele: waypointEle(w, s, climbs),
-        label: w.label,
+        distM: Number.isFinite(w.dist_m) ? w.dist_m : s ? s.dist_m : 0,
+        ele: Number.isFinite(w.dist_m) ? w.altitude_hint_m : waypointEle(w, s, climbs),
+        label: w.label + (w.description ? ` — ${w.description}` : ''),
         kind: w.kind,
         // Arrivée au sommet : le dernier point est enregistré en « col »
         // (pipeline/generate.js), mais c'est aussi l'arrivée.

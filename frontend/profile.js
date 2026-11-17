@@ -201,6 +201,7 @@
     const H = opts.height || 260;
     const mini = !!opts.mini;
     const prof = data.profile || [];
+    const explicit = (data.landmarks || []).filter((p) => !p.stale && Number.isFinite(p.dist_m));
     if (!prof.length) return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}"></svg>`;
 
     const stripList = visibleStrips(opts, prof[prof.length - 1].d);
@@ -340,7 +341,8 @@
         labels.push({
           m: c.end_km * 1000,
           e: c.summit_ele_m,
-          text: `${c.name} (${c.summit_ele_m} m)${bonusTxt}`,
+          text: explicit.some((p) => p.kind === 'col' && Math.abs(p.dist_m - c.end_km * 1000) < 100 && p.label === c.name)
+            ? '' : `${c.name} (${c.summit_ele_m} m)${bonusTxt}`,
           priority: 3,
           cat: c.category,
         });
@@ -401,10 +403,33 @@
         `<text x="${W - M.r}" y="16" text-anchor="end" font-size="13" font-weight="bold" fill="#222">${dec(dist)} km — D+ ${st.total_ascent_m != null ? st.total_ascent_m : '?'} m</text>`;
     }
 
+    let legend = '', legendY = H + 12;
+    if (!mini) {
+      const counts = new Map();
+      explicit.forEach((p, i) => {
+        const xx = x(p.dist_m), key = Math.round(xx / 24);
+        const row = counts.get(key) || 0;
+        counts.set(key, row + 1);
+        const yy = y(Number.isFinite(p.profile_ele_m) ? p.profile_ele_m : eMin);
+        const cy = Math.max(32, yy - 15 - (row % 3) * 18);
+        ann += `<g data-landmark="${i + 1}"><title>${esc(p.label)} — km ${dec((p.dist_m / 1000).toFixed(2))}</title>` +
+          `<line x1="${xx}" x2="${xx}" y1="${yy}" y2="${cy}" stroke="#145c81"/>` +
+          `<circle cx="${xx}" cy="${cy}" r="8" fill="#145c81"/>` +
+          `<text x="${xx}" y="${cy + 3}" text-anchor="middle" font-size="8" fill="white">${i + 1}</text></g>`;
+        const text = `${i + 1}. ${p.label} — km ${dec((p.dist_m / 1000).toFixed(2))} · profil : ${p.profile_ele_m == null ? 'inconnu' : Math.round(p.profile_ele_m) + ' m'}` +
+          (p.expected_ele_m == null ? '' : ` · attendu : ${p.expected_ele_m} m${p.altitude_warning ? ' (écart à vérifier)' : ''}`);
+        const chars = Array.from(text), perLine = Math.max(20, Math.floor((W - 32) / 6.4));
+        while (chars.length) {
+          legend += `<text x="16" y="${legendY}" font-size="11" fill="#222">${esc(chars.splice(0, perLine).join(''))}</text>`;
+          legendY += 16;
+        }
+      });
+    }
+    const totalH = explicit.length && !mini ? legendY + 8 : H;
     return (
-      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Profil de l'étape">` +
-      `<rect x="0" y="0" width="${W}" height="${H}" fill="#faf6ec"/>` +
-      grid + silhouette + steepBands + band + strips + ann +
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${totalH}" role="img" aria-label="Profil de l'étape">` +
+      `<rect x="0" y="0" width="${W}" height="${totalH}" fill="#faf6ec"/>` +
+      grid + silhouette + steepBands + band + strips + ann + legend +
       `</svg>`
     );
   }

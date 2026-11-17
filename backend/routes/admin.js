@@ -60,7 +60,7 @@ module.exports = function register(app) {
   // ressaisir — la fiche la redemande d'elle-même.
   // `gear` avant `stages` : stages.gear_id y fait référence (migration 7) ;
   // la suppression parcourt la liste à l'envers.
-  const BACKUP_TABLES = ['editions', 'gear', 'stages', 'waypoints', 'tracks', 'elevation_samples', 'climbs', 'descents', 'km_analysis'];
+  const BACKUP_TABLES = ['editions', 'gear', 'stages', 'waypoints', 'tracks', 'elevation_samples', 'climbs', 'descents', 'km_analysis', 'stage_landmarks'];
 
   // Règles des routes d'écriture (revue globale du 19/10/2026) appliquées à
   // la sauvegarde réimportée, sans refuser ce que l'appli a elle-même pu
@@ -79,6 +79,7 @@ module.exports = function register(app) {
     gear: { name: GEAR_NAME_MAX },
     stages: { name: FIELD_MAX.name, status: FIELD_MAX.status, stage_type: FIELD_MAX.stage_type, city_hint: FIELD_MAX.hint, region_hint: FIELD_MAX.hint, country_hint: FIELD_MAX.hint },
     waypoints: { label: FIELD_MAX.label, source: FIELD_MAX.source, country_hint: FIELD_MAX.hint, region_hint: FIELD_MAX.hint },
+    stage_landmarks: { label: 200, source: 8000 },
   };
   const BACKUP_JSON_COLUMNS = {
     editions: ['source'],
@@ -156,6 +157,12 @@ module.exports = function register(app) {
     }
     if (t === 'stages' && 'state' in row && !STAGE_STATES.has(row.state)) {
       throw bad('state', `${[...STAGE_STATES].join(', ')} attendu`);
+    }
+    if (t === 'stage_landmarks') {
+      if (!require('../../pipeline/landmarks').KINDS.has(row.kind)) throw bad('kind', 'type de repère inconnu');
+      if (typeof row.track_ref !== 'string' || !/^[a-f0-9]{64}$/.test(row.track_ref)) throw bad('track_ref', 'empreinte de tracé attendue');
+      if (typeof row.label !== 'string' || !row.label.trim()) throw bad('label', 'libellé requis');
+      if (!Number.isFinite(row.dist_m) || row.dist_m < 0 || !inLatLonBounds(row.lat, row.lon)) throw bad('dist_m', 'ancrage invalide');
     }
     if (t === 'waypoints' && 'kind' in row && !WAYPOINT_KINDS.has(row.kind)) {
       throw Object.assign(new Error(`${f('kind')} : ${[...WAYPOINT_KINDS].join(', ')} attendu`), { status: 400 });
@@ -267,6 +274,12 @@ module.exports = function register(app) {
         }
       }
       perTable[t] = { cols, rows };
+    }
+    const landmarkCounts = new Map();
+    for (const row of perTable.stage_landmarks.rows) {
+      const count = (landmarkCounts.get(row.stage_id) || 0) + 1;
+      if (count > require('../../pipeline/landmarks').MAX_LANDMARKS) return res.status(400).json({ error: '500 repères au plus par étape' });
+      landmarkCounts.set(row.stage_id, count);
     }
     const run = db.transaction(() => {
       for (const t of [...BACKUP_TABLES].reverse()) db.prepare(`DELETE FROM ${t}`).run();
