@@ -127,6 +127,15 @@ const EF = {
     return `<span class="badge ${state}">${labels[state]}</span>`;
   },
 
+  originBadge(origin) {
+    if (!origin) return '';
+    const labels = { gpx: 'Import GPX', fit: 'Import FIT', 'import-link': 'GPX par lien', suunto: 'Import Suunto', strava: 'Import Strava' };
+    const label = origin.mode === 'routed'
+      ? (origin.format === 'gpx' ? 'Reconstruit depuis un GPX' : 'Reconstruit depuis une trace')
+      : (Object.hasOwn(labels, origin.format) ? labels[origin.format] : 'Trace importée');
+    return `<span class="badge imported-badge">${label}</span>`;
+  },
+
   // Écart en % entre distance reconstituée et distance officielle (fiche
   // étape, archives, carte globale) — même formule réécrite indépendamment
   // dans 4 endroits (trouvaille de sprint dédié). null si l'une des deux

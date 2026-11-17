@@ -25,6 +25,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 
 global.EF = { day: (v) => { const m = typeof v === 'string' && v.match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${m[3]}/${m[2]}/${m[1]}` : v; }, dec: (v) => (v == null ? v : String(v).replace('.', ',')),
+  originBadge: require('../frontend/common').originBadge,
   qs: () => null,
   esc: (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'),
   distanceDelta(officialKm, generatedKm) {

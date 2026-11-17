@@ -373,7 +373,7 @@ test('stagePayload : ne renvoie que les champs de stage listés explicitement (p
   assert.strictEqual(payload.stage.secret_internal_field, undefined);
   assert.deepStrictEqual(Object.keys(payload.stage).sort(), [
     'checks', 'date', 'generated_distance_km', 'id', 'is_transfer', 'name',
-    'official_distance_km', 'source', 'stage_order', 'stage_type', 'state', 'status', 'total_ascent_m',
+    'official_distance_km', 'origin', 'source', 'stage_order', 'stage_type', 'state', 'status', 'total_ascent_m',
   ].sort());
 });
 
