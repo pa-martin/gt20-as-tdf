@@ -1,12 +1,15 @@
 'use strict';
 // Écran 1 : éditeur d'étape — formulaire + waypoints ordonnés avec autocomplétion
 // géocodage + carte Leaflet de prévisualisation (ajout de waypoint par clic).
-// Avec ?id=<n> : mode édition d'une étape existante (mise à jour + regénération).
+// Avec ?id=<n> : sauvegarde des informations séparée du routage volontaire.
 
 let map;
 let markersLayer;
 let waypoints = []; // {label, kind, lat, lon}
 let editingId = null; // id de l'étape en cours de modification (mode édition)
+let editingFull = null;
+let traceLayer;
+let dateChanged = false;
 
 /**
  * Défi du jour (backlog #10, section D) : suggère une édition mythique au
@@ -253,16 +256,7 @@ async function generate() {
   if (valid[valid.length - 1].kind !== 'col') valid[valid.length - 1].kind = 'finish';
   btn.disabled = true;
   msg.textContent = editingId ? 'Mise à jour…' : 'Création…';
-  const body = {
-    name,
-    date: document.getElementById('f-date').value || null,
-    stage_type: document.getElementById('f-type').value,
-    status: document.getElementById('f-status').value || null,
-    // Number() : la valeur d'un <select> est une chaîne, que le serveur
-    // refuse pour edition_id (optionalNumber) — choisir un tour donnait 400.
-    edition_id: Number(document.getElementById('f-edition').value) || null,
-    waypoints: valid,
-  };
+  const body = { ...informationBody(), name, waypoints: valid };
   try {
     let id = editingId;
     if (editingId) {
@@ -278,14 +272,64 @@ async function generate() {
   }
 }
 
+function informationBody() {
+  const body = {
+    name: document.getElementById('f-name').value.trim(),
+    stage_type: document.getElementById('f-type').value,
+    status: document.getElementById('f-status').value || null,
+    edition_id: Number(document.getElementById('f-edition').value) || null,
+  };
+  // Une date historique non ISO ne peut pas être représentée par input date.
+  if (!editingFull?.stage.date || /^\d{4}-\d{2}-\d{2}$/.test(editingFull.stage.date) || dateChanged) {
+    body.date = document.getElementById('f-date').value || null;
+  }
+  return body;
+}
+
+async function saveInformation() {
+  const btn = document.getElementById('btn-save');
+  const msg = document.getElementById('gen-msg');
+  btn.disabled = true;
+  try {
+    await EF.api(`/api/stages/${editingId}`, { method: 'PUT', body: informationBody() });
+    editingFull = await EF.api(`/api/stages/${editingId}`);
+    msg.textContent = 'Informations enregistrées. Tracé et analyses inchangés.';
+    await loadStages();
+  } catch (err) {
+    msg.textContent = 'Erreur : ' + err.message;
+  } finally { btn.disabled = false; }
+}
+
+async function reconstructionCopy() {
+  const btn = document.getElementById('btn-copy');
+  btn.disabled = true;
+  try {
+    const copy = await EF.api(`/api/stages/${editingId}/reconstruction-copy`, { method: 'POST' });
+    location.href = `/?id=${copy.id}`;
+  } catch (err) {
+    document.getElementById('gen-msg').textContent = 'Erreur : ' + err.message;
+    btn.disabled = false;
+  }
+}
+
 /** Mode édition : précharge une étape existante dans le formulaire. */
 async function loadForEdit(id) {
   const full = await EF.api(`/api/stages/${id}`);
   editingId = id;
+  editingFull = full;
   const st = full.stage;
   document.getElementById('f-name').value = st.name || '';
   if (st.date && /^\d{4}-\d{2}-\d{2}$/.test(st.date)) document.getElementById('f-date').value = st.date;
-  if (st.stage_type) document.getElementById('f-type').value = st.stage_type;
+  if (st.stage_type) {
+    const types = document.getElementById('f-type');
+    if (![...types.options].some((o) => o.value === st.stage_type)) {
+      types.add(new Option(st.stage_type, st.stage_type));
+    }
+    types.value = st.stage_type;
+  }
+  if (st.date && !/^\d{4}-\d{2}-\d{2}$/.test(st.date)) {
+    document.getElementById('gen-msg').textContent = `Date historique conservée : ${st.date}.`;
+  }
   document.getElementById('f-status').value = st.status || '';
   if (st.edition_id) document.getElementById('f-edition').value = st.edition_id;
   // Tous les champs de provenance sont conservés et renvoyés au PUT : ne
@@ -295,7 +339,20 @@ async function loadForEdit(id) {
   waypoints = full.waypoints.map(keepProvenance);
   document.querySelector('main h1').textContent = `Modifier : ${st.name}`;
   document.getElementById('btn-generate').textContent = 'Mettre à jour et régénérer ▶';
+  document.getElementById('btn-generate').classList.add('secondary');
+  document.getElementById('btn-save').hidden = false;
+  const imported = st.origin?.mode === 'imported';
+  document.getElementById('routing-fields').hidden = imported;
+  document.getElementById('btn-generate').hidden = imported;
+  document.getElementById('trace-preserved').hidden = !imported;
+  document.getElementById('btn-copy').hidden = !full.track;
   render();
+  traceLayer?.remove();
+  const coords = full.track?.geojson?.geometry?.coordinates;
+  if (coords?.length) {
+    traceLayer = L.polyline(coords.map((c) => [c[1], c[0]]), { color: '#c0392b', weight: 3 }).addTo(map);
+    map.fitBounds(traceLayer.getBounds(), { padding: [30, 30] });
+  }
 }
 
 // Garde typeof : challengeIndexForDate est une fonction pure, testée
@@ -310,6 +367,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   markersLayer = L.layerGroup().addTo(map);
 
   map.on('click', async (e) => {
+    if (editingFull?.stage.origin?.mode === 'imported' || window.EF_STATIC) return;
     // Un clic sur une copie du monde donne une longitude hors [-180, 180]
     // (359,6 au lieu de -0,4), que le serveur refuse.
     const lat = e.latlng.lat;
@@ -333,6 +391,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     render();
   });
   document.getElementById('btn-generate').addEventListener('click', generate);
+  document.getElementById('btn-save').addEventListener('click', saveInformation);
+  document.getElementById('btn-copy').addEventListener('click', reconstructionCopy);
+  document.getElementById('f-date').addEventListener('input', () => { dateChanged = true; });
   if (window.EF_STATIC) {
     const btn = document.getElementById('btn-generate');
     btn.disabled = true;
@@ -389,6 +450,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (editId) {
     try {
       await loadForEdit(parseInt(editId, 10));
+      if (window.EF_STATIC) {
+        for (const id of ['btn-save', 'btn-copy', 'btn-generate']) document.getElementById(id).disabled = true;
+      }
     } catch (err) {
       document.getElementById('gen-msg').textContent = 'Erreur de chargement : ' + err.message;
     }

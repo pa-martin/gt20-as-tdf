@@ -29,6 +29,7 @@ Un item cohérent par PR ; aucune donnée GPX GT20 privée versionnée.
 - [ ] 42.1 Provenance et badge GPX — issue #1. Critères : imports existants
   reconnus dans listes et fiche ; FIT/connecteurs distincts ; un renommage
   ou changement de type/statut ne modifie pas la provenance ; vitrine cohérente.
+  Implémentée et revue : PR #6 (CI non disponible sur le fork, non fusionnée).
 - [ ] 42.2 Enregistrement sans régénération — issue #2. Critères : vraie trace
   dans l'éditeur, métadonnées et champs vidables sans modifier les analyses ;
   protection serveur ; reconstruction uniquement dans une copie indépendante,

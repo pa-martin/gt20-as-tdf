@@ -6,6 +6,7 @@
 // l'application reste complète pour qui y a accès.
 
 const { haversine, inLatLonBounds } = require('./geo');
+const { originOf, sourceOf } = require('./provenance');
 
 // Clé du réglage (backend/settings.js), lue par le profil et les exports.
 const PRIVACY_ZONES_KEY = 'privacy_zones';
@@ -63,8 +64,9 @@ const inZone = (p, zones) =>
 
 /**
  * Copie d'une étape complète (loadStageFull) telle qu'elle peut sortir de
- * l'application. Ne touche qu'aux traces importées (`track.router ===
- * 'trace'`) : une étape historique ne passe pas chez quelqu'un. Retire :
+ * l'application. Protège les traces importées et leurs copies reconstruites,
+ * même après un changement de routeur. Ne touche pas aux étapes historiques.
+ * Retire :
  * - les échantillons, points du tracé et points de passage dans une zone ;
  * - les côtes, descentes, faux-plats et lignes du km par km qui recouvrent
  *   une portion masquée (nom, altitude et position du lieu caché) ;
@@ -77,17 +79,19 @@ const inZone = (p, zones) =>
  * `privacyUnreadable` le signale aux exports.
  */
 function maskStage(full, zones) {
-  if (!full || full.track?.router !== 'trace' || (zones && !zones.length)) return full;
+  if (!full || (!originOf(full.stage, full.track) && !sourceOf(full.stage).reconstructed_from) || (zones && !zones.length)) return full;
   const hidden = (p) => zones === null || inZone(p, zones);
+  const coords = full.track?.geojson?.geometry?.coordinates;
   const removed = full.samples.filter(hidden).map((sm) => sm.dist_m);
-  if (!removed.length && zones !== null) return full;
+  const hiddenWaypoint = (full.waypoints || []).some((w) => w.lat != null && hidden(w));
+  const hiddenCoordinate = Array.isArray(coords) && coords.some(([lon, lat]) => hidden({ lat, lon }));
+  if (!removed.length && !hiddenWaypoint && !hiddenCoordinate && zones !== null) return full;
   // Portion [aM, bM] recouvrant au moins un échantillon masqué.
   const touches = (aM, bM) => removed.some((d) => d >= aM && d <= bM);
   const byKm = (a, b) => (row) => !touches(Number(row[a]) * 1000, Number(row[b]) * 1000);
-  const coords = full.track.geojson?.geometry?.coordinates;
   const startHidden = full.samples.length && hidden(full.samples[0]);
   const climbs = (full.climbs || []).filter(byKm('start_km', 'end_km'));
-  const communes = full.track.communes;
+  const communes = full.track?.communes;
   // Une commune est celle d'un point pris tous les `stepM` mètres : masquée
   // si un échantillon masqué tombe à moins d'un demi-pas de ce point.
   const halfStep = (Number(communes?.stepM) || 1000) / 2;
@@ -104,13 +108,13 @@ function maskStage(full, zones) {
     descents: (full.descents || []).filter(byKm('start_km', 'end_km')),
     fauxPlats: (full.fauxPlats || []).filter(byKm('fromKm', 'toKm')),
     kmAnalysis: (full.kmAnalysis || []).filter((r) => !touches((Number(r.km) - 1) * 1000, Number(r.km) * 1000)),
-    track: {
+    track: full.track ? {
       ...full.track,
       communes: maskedCommunes,
       geojson: Array.isArray(coords)
         ? { ...full.track.geojson, geometry: { ...full.track.geojson.geometry, coordinates: coords.filter((c) => !hidden({ lat: c[1], lon: c[0] })) } }
         : full.track.geojson,
-    },
+    } : null,
     privacyMasked: true,
     ...(zones === null ? { privacyUnreadable: true } : {}),
   };

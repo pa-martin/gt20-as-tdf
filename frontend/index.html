@@ -68,14 +68,19 @@
       </div>
     </div>
 
-    <h2>Waypoints (ordonnés)</h2>
+    <p id="trace-preserved" class="meta-line" hidden>Trace importée conservée : enregistrer les informations ne recalcule ni le parcours ni son profil. Pour changer le routage, créez une copie.</p>
+    <div id="routing-fields">
+    <h2>Waypoints de routage (ordonnés)</h2>
     <p class="meta-line">Tapez un lieu (autocomplétion par géocodage) ou cliquez sur la carte pour ajouter
       un point (géocodage inverse). Marquez les cols pour garantir leur passage et leur vérification d'altitude.</p>
     <ul id="wp-list" class="wp-list"></ul>
+    <button id="wp-add" class="secondary">+ Ajouter un waypoint</button>
+    </div>
     <div class="toolbar">
-      <button id="wp-add" class="secondary">+ Ajouter un waypoint</button>
+      <button id="btn-save" hidden>Enregistrer les informations</button>
       <button id="btn-generate">Générer l'étape ▶</button>
-      <span id="gen-msg" class="meta-line"></span>
+      <button id="btn-copy" class="secondary" hidden>Créer une copie à reconstruire</button>
+      <span id="gen-msg" class="meta-line" role="status"></span>
     </div>
   </div>
 

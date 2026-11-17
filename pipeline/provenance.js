@@ -12,7 +12,7 @@ function sourceOf(stage) {
 function originOf(stage, track) {
   const source = sourceOf(stage);
   const format = FORMATS.has(source.trace) ? source.trace : null;
-  if (!format && track?.router !== 'trace') return null;
+  if (!format && track?.router !== 'trace' && !source.reconstructed_from) return null;
   const mode = source.reconstructed_from || (track?.router && track.router !== 'trace') ? 'routed' : 'imported';
   return { format, mode };
 }

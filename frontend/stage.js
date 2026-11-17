@@ -65,6 +65,11 @@ async function poll() {
     return;
   }
   if (st.state === 'draft' && !poll.started) {
+    if (st.origin?.mode === 'imported') {
+      document.getElementById('pg-title').textContent = 'Trace importée conservée';
+      document.getElementById('pg-detail').textContent = 'Ouvrez l’éditeur pour modifier ses informations, sans régénérer.';
+      return;
+    }
     // fiche ouverte sur un brouillon : lancer la génération
     poll.started = true;
     try {
@@ -589,10 +594,17 @@ function renderFiche() {
   // courante. Erreur affichée au lieu d'un rejet non géré (revue globale du
   // 19/10/2026).
   const regen = document.getElementById('btn-regen');
+  const imported = FULL.stage.origin?.mode === 'imported';
+  if (imported) regen.textContent = 'Créer une copie à reconstruire';
   regen.addEventListener('click', EF.confirmClick(regen, {
-    confirmText: '↻ confirmer : régénérer ?',
+    confirmText: imported ? 'Confirmer : créer une copie ?' : '↻ confirmer : régénérer ?',
     onConfirm: async () => {
       try {
+        if (imported) {
+          const copy = await EF.api(`/api/stages/${stageId}/reconstruction-copy`, { method: 'POST' });
+          location.href = `/?id=${copy.id}`;
+          return;
+        }
         await EF.api(`/api/stages/${stageId}/generate`, { method: 'POST' });
         location.reload();
       } catch (err) {

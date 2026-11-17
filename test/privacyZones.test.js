@@ -154,3 +154,33 @@ test('réglage illisible en base : la carte des traces est vide, les exports ne 
   }
   setSetting('privacy_zones', JSON.stringify([HOME]));
 });
+
+test('copie reconstruite : original intact, brouillon sans mesures et confidentialité conservée après routage', async () => {
+  const before = await (await fetch(`${base}/api/stages/${traceId}`)).json();
+  const res = await json(`/api/stages/${traceId}/reconstruction-copy`, 'POST', {});
+  assert.strictEqual(res.status, 201);
+  const { id } = await res.json();
+  const copy = await (await fetch(`${base}/api/stages/${id}`)).json();
+  assert.strictEqual(copy.stage.state, 'draft');
+  assert.strictEqual(copy.stage.origin.mode, 'routed');
+  assert.strictEqual(copy.stage.source.reconstructed_from, traceId);
+  assert.strictEqual(copy.samples.length, 0);
+  assert.strictEqual(copy.track, null);
+  assert.strictEqual(copy.waypoints.length, 2);
+  assert.strictEqual(copy.stage.date, null);
+  const draftExport = await (await fetch(`${base}/api/stages/${id}/export.json`)).json();
+  assert.ok(draftExport.waypoints.every((w) => !inZone(w, [HOME])), 'les extrémités privées sont masquées même sans track');
+  const { maskStage } = require('../pipeline/privacy');
+  assert.strictEqual(maskStage(copy, null).waypoints.length, 0, 'réglage illisible : aucun waypoint du brouillon exporté');
+  await require('../pipeline/generate').generateStage(id);
+  const routed = await (await fetch(`${base}/api/stages/${id}`)).json();
+  assert.notStrictEqual(routed.track.router, 'trace');
+  assert.ok(routed.samples.some((s) => inZone(s, [HOME])), 'la copie locale reste complète');
+  const exported = await (await fetch(`${base}/api/stages/${id}/export.json`)).json();
+  assert.ok(exported.samples.length > 0);
+  assert.ok(exported.samples.every((s) => !inZone(s, [HOME])));
+  assert.ok(exported.track.geojson.geometry.coordinates.every(([lon, lat]) => !inZone({ lat, lon }, [HOME])));
+  assert.deepStrictEqual(await (await fetch(`${base}/api/stages/${traceId}`)).json(), before);
+  const unknown = { ...routed, stage: { ...routed.stage, source: { reconstructed_from: traceId } } };
+  assert.strictEqual(maskStage(unknown, null).samples.length, 0, 'une copie sans format connu reste protégée');
+});
