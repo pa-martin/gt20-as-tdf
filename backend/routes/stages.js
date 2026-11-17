@@ -195,9 +195,9 @@ module.exports = function register(app) {
     const source = { ...require('../../pipeline/provenance').sourceOf(full.stage), reconstructed_from: id };
     const db = getDb();
     const copyId = db.transaction(() => {
-      const copy = db.prepare(`INSERT INTO stages (name, stage_type, edition_id, source, state)
-        VALUES (?, ?, ?, ?, 'draft')`).run(`${full.stage.name.slice(0, 170)} (copie à reconstruire)`,
-        full.stage.stage_type, full.stage.edition_id, JSON.stringify(source)).lastInsertRowid;
+      const copy = db.prepare(`INSERT INTO stages (name, stage_type, edition_id, source, publication, state)
+        VALUES (?, ?, ?, ?, ?, 'draft')`).run(`${full.stage.name.slice(0, 170)} (copie à reconstruire)`,
+        full.stage.stage_type, full.stage.edition_id, JSON.stringify(source), full.stage.publication).lastInsertRowid;
       insertWaypoints(db, copy, [coords[0], coords[coords.length - 1]].map((p, i) => ({
         label: i ? 'Arrivée' : 'Départ', kind: i ? 'finish' : 'start',
         lat: p[1], lon: p[0], altitude_hint_m: null, bonus_sec: null,

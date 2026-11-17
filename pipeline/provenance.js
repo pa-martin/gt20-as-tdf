@@ -13,7 +13,7 @@ function originOf(stage, track) {
   const source = sourceOf(stage);
   const format = FORMATS.has(source.trace) ? source.trace : null;
   if (!format && track?.router !== 'trace' && !source.reconstructed_from) return null;
-  const mode = source.reconstructed_from || (track?.router && track.router !== 'trace') ? 'routed' : 'imported';
+  const mode = source.reconstructed_from || (track?.router && !['trace', 'gpx-catalogue'].includes(track.router)) ? 'routed' : 'imported';
   return { format, mode };
 }
 

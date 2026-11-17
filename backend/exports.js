@@ -88,6 +88,18 @@ function exportWaypoints(full) {
   }))];
 }
 
+function decimalCoordinate(n) {
+  const text = String(n);
+  if (!text.includes('e')) return text;
+  const [mantissa, exponent] = text.split('e');
+  const unsigned = mantissa.replace('-', '');
+  const digits = unsigned.replace('.', '');
+  const point = unsigned.split('.')[0].length + Number(exponent);
+  const value = point <= 0 ? '0.' + '0'.repeat(-point) + digits :
+    point >= digits.length ? digits + '0'.repeat(point - digits.length) : digits.slice(0, point) + '.' + digits.slice(point);
+  return (n < 0 ? '-' : '') + value;
+}
+
 /** GPX 1.1 du tracé (points d'altimétrie : lat/lon/ele brute). */
 function stageToGpx(full) {
   const { stage, samples, climbs } = full;
@@ -121,19 +133,23 @@ function stageToGpx(full) {
     })
     .concat(climbWpts ? [climbWpts] : [])
     .join('\n');
-  const pts = samples
+  const preserved = full.track?.geojson?.properties?.preserved;
+  const trackPoints = preserved
+    ? full.track.geojson.geometry.coordinates.map(([lon, lat, ele_raw_m]) => ({ lat, lon, ele_raw_m }))
+    : samples;
+  const pts = trackPoints
     .map(
       (s) =>
         // <ele> omis sur un trou de couverture altimétrique (règle 10) : un
         // 0 m de repli faisait recompter un D+ fantôme à tout GPS qui relit.
-        `      <trkpt lat="${s.lat.toFixed(6)}" lon="${s.lon.toFixed(6)}">${Number.isFinite(s.ele_raw_m) ? `<ele>${s.ele_raw_m}</ele>` : ''}</trkpt>`
+        `      <trkpt lat="${preserved ? decimalCoordinate(s.lat) : s.lat.toFixed(6)}" lon="${preserved ? decimalCoordinate(s.lon) : s.lon.toFixed(6)}">${Number.isFinite(s.ele_raw_m) ? `<ele>${s.ele_raw_m}</ele>` : ''}</trkpt>`
     )
     .join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" creator="ÉtapeForge" xmlns="http://www.topografix.com/GPX/1/1">
   <metadata>
     <name>${esc(stage.name)}</name>
-    <desc>Généré par ÉtapeForge — tracé © OpenStreetMap contributors (routage BRouter, repli OSRM), altimétrie IGN/Géoplateforme &amp; opentopodata.</desc>
+    <desc>${preserved ? 'Tracé GPX importé et conservé — altitudes disponibles du fichier source.' : 'Généré par ÉtapeForge — tracé © OpenStreetMap contributors (routage BRouter, repli OSRM), altimétrie IGN/Géoplateforme &amp; opentopodata.'}${stage.publication === 'private' ? ' Usage local privé uniquement ; redistribution non autorisée.' : ''}</desc>
   </metadata>
 ${wpts}
   <trk>

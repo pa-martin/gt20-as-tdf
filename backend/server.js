@@ -41,6 +41,9 @@ if (AUTH_REQUIRED) app.set('trust proxy', 1);
 // pire, parse un JSON quelconque et retombe sur "corps de requête vide"
 // (relecture adverse, 16/09/2026 — même mécanisme déjà documenté juste
 // au-dessus pour /api/backup/import, cette fois côté ordre plutôt que taille).
+// Les géométries denses dépassent 20 Mio en sauvegarde : parseur dédié,
+// après authentification/admin, avant le parseur général qui intercepterait le corps.
+app.use('/api/backup/import', requireAuth, requireAdmin, express.json({ limit: '100mb' }));
 app.use('/api/import/gpx', express.text({ type: '*/*', limit: '30mb' }));
 app.use('/api/import/fit', express.raw({ type: '*/*', limit: '30mb' }));
 app.use(express.json({ limit: '20mb' }));
@@ -73,6 +76,7 @@ const ADMIN_ROUTES = [
   ['post', '/api/backup/import'],
   ['post', '/api/editions/import'],
   ['post', '/api/editions/import-all'],
+  ['post', '/api/catalog/gt20/import'],
   ['delete', '/api/stages/:id'],
   ['delete', '/api/stages/:id/landmarks/:landmarkId'],
   ['delete', '/api/gear/:id'],

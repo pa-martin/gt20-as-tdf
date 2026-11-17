@@ -229,8 +229,9 @@ async function runLoadEditions() {
   // complet) à chaque sondage de 1,5 s, avec la liste vidée d'abord,
   // faisait clignoter la page et perdre le défilement (revue globale du
   // 19/10/2026).
-  const shown = editions.filter((x) => !x.is_custom && x.year)
-    .filter((e) => !sourcedOnly || (e.stage_count > 0 && e.curated_stage_count === e.stage_count));
+  const isGt20 = (e) => e.catalog_key === 'gt20-private-v1';
+  const shown = editions.filter((x) => isGt20(x) || (!x.is_custom && x.year))
+    .filter((e) => isGt20(e) || !sourcedOnly || (e.stage_count > 0 && e.curated_stage_count === e.stage_count));
   // allSettled : une édition supprimée entre la liste et son détail (404) ne
   // fait plus tomber toute la liste — elle seule affiche son erreur.
   const fulls = await Promise.allSettled(shown.map((e) => EF.api(`/api/editions/${e.id}`)));
@@ -252,7 +253,7 @@ async function runLoadEditions() {
     det.dataset.ed = e.id;
     det.open = openStates[e.id] !== undefined ? openStates[e.id] : String(e.year) === '1903';
     const full = fulls[i].value;
-    const sourceBadge = fullySourced
+    const sourceBadge = isGt20(e) ? '<span class="badge">Catalogue privé</span>' : fullySourced
       ? '<span class="badge sourced-badge">entièrement sourcé</span>'
       : `<span class="badge partial-badge">reconstruction partielle (${e.curated_stage_count || 0}/${e.stage_count} étapes sourcées)</span>`;
     det.innerHTML = `
@@ -260,9 +261,9 @@ async function runLoadEditions() {
         (${e.done_count || 0} générée${(e.done_count || 0) > 1 ? 's' : ''}) ${sourceBadge}</summary>
       <div class="card">
         ${full.source && full.source.notes ? `<div class="note">${EF.esc(full.source.notes)}</div>` : ''}
-        ${full.source ? `<p class="meta-line">Sources : liste des étapes — ${EF.esc(full.source.liste_etapes || '')} ; points de passage — ${EF.esc(full.source.points_de_passage || '')}</p>` : ''}
+        ${isGt20(e) ? `<p class="meta-line">${EF.esc(full.source?.attribution || '')} — usage local privé, redistribution différée.</p>` : full.source ? `<p class="meta-line">Sources : liste des étapes — ${EF.esc(full.source.liste_etapes || '')} ; points de passage — ${EF.esc(full.source.points_de_passage || '')}</p>` : ''}
         <div class="toolbar">
-          <button data-genall="${e.id}">▶ Générer toutes les étapes</button>
+          ${isGt20(e) ? '' : `<button data-genall="${e.id}">▶ Générer toutes les étapes</button>`}
           <a class="btn secondary" href="/tour.html?edition=${e.id}">Carte globale</a>
           <a class="btn secondary" href="/api/editions/${e.id}/export.html">Mini-site HTML</a>
         </div>
@@ -307,6 +308,29 @@ async function pollWhileGenerating() {
   pollFailures = 0;
   const anyRunning = document.body.innerHTML.includes('génération…');
   if (anyRunning) pollTimer = setTimeout(pollWhileGenerating, 1500);
+}
+
+async function loadCatalogue() {
+  if (window.EF_STATIC) return;
+  const box = document.getElementById('gt20-catalog');
+  const btn = document.getElementById('gt20-import');
+  const msg = document.getElementById('gt20-msg');
+  box.hidden = false;
+  try {
+    const status = await EF.api('/api/catalog/gt20');
+    btn.disabled = !status.available || !!status.edition_id;
+    msg.textContent = status.edition_id ? 'Catalogue déjà importé : retrouvez-le dans les tours ci-dessous. Un nouvel import ne recrée pas une étape supprimée.' :
+      status.available ? 'GPX et repères prêts localement. Cliquez pour importer le catalogue.' : status.reason;
+    btn.onclick = async () => {
+      btn.disabled = true;
+      msg.textContent = 'Import local…';
+      try {
+        await EF.api('/api/catalog/gt20/import', { method: 'POST' });
+        await loadEditions();
+        await loadCatalogue();
+      } catch (e) { msg.textContent = e.message; btn.disabled = false; }
+    };
+  } catch (e) { msg.textContent = 'Catalogue indisponible : ' + e.message; }
 }
 
 async function loadMythicGrid() {
@@ -431,6 +455,7 @@ function searchNearPlace(e) {
 
 if (typeof document !== 'undefined') {
 document.addEventListener('DOMContentLoaded', async () => {
+  loadCatalogue();
   // Démo statique : pas de serveur pour géocoder ni chercher.
   if (window.EF_STATIC) document.getElementById('near-box').style.display = 'none';
   else document.getElementById('near-form').addEventListener('submit', searchNearPlace);
