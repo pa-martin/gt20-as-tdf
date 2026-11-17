@@ -34,6 +34,7 @@ Un item cohérent par PR ; aucune donnée GPX GT20 privée versionnée.
   dans l'éditeur, métadonnées et champs vidables sans modifier les analyses ;
   protection serveur ; reconstruction uniquement dans une copie indépendante,
   confidentialité et mesures de l'original préservées.
+  Implémentée et revue : PR #7, dépend de #6 ; copies masquées dès le brouillon.
 - [ ] 42.3 Points marquants — issue #3. Critères : annotations distinctes des
   vias, ajout carte/km et édition/suppression, occurrences de boucles explicites,
   ancrage contrôlé, altitudes inconnues conservées ; profil, exports, sauvegardes

@@ -148,7 +148,9 @@ button, a.btn {
   display: inline-block;
 }
 button:hover, a.btn:hover { background: #333; }
-button[hidden] { display: none; }
+[hidden] { display: none !important; }
+#lm-list li, #landmarks-list li { margin-bottom: 10px; overflow-wrap: anywhere; }
+#landmark-profile { cursor: crosshair; }
 button.secondary, a.btn.secondary { background: #eee; color: #333; border: 1px solid #ccc; }
 button.danger { background: var(--fail); color: #fff; }
 button:disabled { opacity: 0.5; cursor: default; }

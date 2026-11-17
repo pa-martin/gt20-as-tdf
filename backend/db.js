@@ -314,6 +314,21 @@ const MIGRATIONS = [
       }
     },
   },
+  {
+    version: 11,
+    description: 'repères indépendants du routage, ancrés à une version de tracé',
+    up(database) {
+      database.exec(`CREATE TABLE stage_landmarks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        stage_id INTEGER NOT NULL REFERENCES stages(id) ON DELETE CASCADE,
+        label TEXT NOT NULL, kind TEXT NOT NULL,
+        dist_m REAL NOT NULL, lat REAL NOT NULL, lon REAL NOT NULL,
+        track_ref TEXT NOT NULL,
+        expected_ele_m REAL, source TEXT
+      );
+      CREATE INDEX idx_landmarks_stage ON stage_landmarks(stage_id, dist_m, id);`);
+    },
+  },
 ];
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
 

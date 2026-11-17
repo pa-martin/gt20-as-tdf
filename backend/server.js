@@ -74,6 +74,7 @@ const ADMIN_ROUTES = [
   ['post', '/api/editions/import'],
   ['post', '/api/editions/import-all'],
   ['delete', '/api/stages/:id'],
+  ['delete', '/api/stages/:id/landmarks/:landmarkId'],
   ['delete', '/api/gear/:id'],
   ['put', '/api/profile'],
   // Connecteurs : un seul compte Suunto/Strava partagé par l'instance —
@@ -98,6 +99,7 @@ for (const [method, route] of ADMIN_ROUTES) app[method](route, requireAdmin);
 require('./routes/admin')(app);
 require('./routes/geocode')(app);
 require('./routes/stages')(app);
+require('./routes/landmarks')(app);
 require('./routes/traces')(app);
 require('./routes/climbEfforts')(app);
 require('./routes/gear')(app);

@@ -380,9 +380,13 @@ function loadStageFull(stageId) {
       bonus_sec: w.bonus_sec ? JSON.parse(w.bonus_sec) : null,
     })),
     track: track
-      ? { ...track, geojson: JSON.parse(track.geojson), approx_segments: track.approx_segments ? JSON.parse(track.approx_segments) : [], surfaces: parseSurfaces(track.surfaces), communes: parseCommunes(track.communes) }
+      ? { ...track, geojson: JSON.parse(track.geojson), geometry_ref: require('./landmarks').geometryRef({ ...track, geojson: JSON.parse(track.geojson) }),
+        approx_segments: track.approx_segments ? JSON.parse(track.approx_segments) : [], surfaces: parseSurfaces(track.surfaces), communes: parseCommunes(track.communes) }
       : null,
     samples,
+    landmarks: require('./landmarks').decorateLandmarks(
+      db.prepare('SELECT * FROM stage_landmarks WHERE stage_id = ? ORDER BY dist_m, id').all(stageId),
+      track ? { ...track, geojson: JSON.parse(track.geojson) } : null, samples),
     climbs: climbs.map((c) => ({ ...c, km_blocks: c.km_blocks ? JSON.parse(c.km_blocks) : [] })),
     descents: descents.map((d) => ({ ...d, km_blocks: d.km_blocks ? JSON.parse(d.km_blocks) : [] })),
     kmAnalysis,
