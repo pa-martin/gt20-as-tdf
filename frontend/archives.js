@@ -94,7 +94,7 @@ function stageRow(s) {
   // runLoadEditions() avant d'ajouter l'édition en cours ni les suivantes au
   // DOM (trouvaille de revue-personas, persona développeur + QA).
   return `<tr>
-    <td><a href="/stage.html?id=${s.id}">${EF.esc(s.name)}</a>
+    <td><a href="/stage.html?id=${s.id}">${EF.esc(s.name)}</a> ${EF.originBadge(s.origin)}
       ${s.is_curated ? '<span class="badge sourced-badge" title="points de passage vérifiés (historic_routes.json), pas seulement villes Wikipédia">sourcé</span>' : ''}</td>
     <td>${EF.esc(EF.day(s.date) || '')}</td>
     <td>${EF.esc(s.stage_type || '—')}</td>

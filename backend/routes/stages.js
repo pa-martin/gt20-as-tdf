@@ -11,6 +11,7 @@ const { wrap, httpError, requireString, optionalString, optionalNumber, optional
 
 const { isOffline } = require('../../pipeline/http');
 const { communesAlong } = require('../../pipeline/communes');
+const { originOf } = require('../../pipeline/provenance');
 
 /** Waypoints reçus par POST/PUT /api/stages → lignes validées (règle 8).
  * Tous les champs que l'import d'une édition écrit (pipeline/importer.js)
@@ -76,8 +77,9 @@ module.exports = function register(app) {
       .prepare(
         `SELECT s.id, s.name, s.date, s.stage_type, s.status, s.state, s.stage_order,
                 s.official_distance_km, s.generated_distance_km, s.total_ascent_m, s.checks,
-                s.edition_id, s.is_transfer, e.name AS edition_name, e.year AS edition_year
+                s.edition_id, s.is_transfer, s.source, t.router, e.name AS edition_name, e.year AS edition_year
          FROM stages s LEFT JOIN editions e ON e.id = s.edition_id
+         LEFT JOIN tracks t ON t.stage_id = s.id
          ORDER BY COALESCE(e.year, 9999), s.stage_order, s.id`
       )
       .all()
@@ -91,7 +93,10 @@ module.exports = function register(app) {
         // pesait 5,2 Mo pour 251 ms, presque entièrement ce détail.
         // Toute autre forme (tableau, scalaire — jamais écrite par le pipeline) : null.
         checks = checks && typeof checks === 'object' && !Array.isArray(checks) ? { ok: checks.ok, offline: checks.offline } : null;
-        return { ...s, checks };
+        const summary = { ...s, checks, origin: originOf(s, s) };
+        delete summary.source;
+        delete summary.router;
+        return summary;
       });
     res.json(rows);
   });

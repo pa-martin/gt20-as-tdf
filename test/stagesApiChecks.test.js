@@ -90,3 +90,30 @@ test('GET /api/stages : checks de forme inattendue (tableau, scalaire) → null,
   const rows = await (await fetch(`${base}/api/stages`)).json();
   assert.deepStrictEqual(rows.map((r) => r.checks), [null, null, null]);
 });
+
+test('provenance GPX cohérente entre résumé, fiche et édition après renommage', async () => {
+  const db = getDb();
+  const editionId = db.prepare("INSERT INTO editions (name, is_custom) VALUES ('Tour GPX', 1)").run().lastInsertRowid;
+  const id = db.prepare("INSERT INTO stages (name, source, edition_id) VALUES ('Avant', ?, ?)")
+    .run(JSON.stringify({ trace: 'gpx', points_bruts: 1234 }), editionId).lastInsertRowid;
+  const update = await fetch(`${base}/api/stages/${id}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Après', stage_type: 'montagne', status: 'prévue' }),
+  });
+  assert.strictEqual(update.status, 200);
+  const row = (await (await fetch(`${base}/api/stages`)).json())[0];
+  const full = await (await fetch(`${base}/api/stages/${id}`)).json();
+  const edition = await (await fetch(`${base}/api/editions/${editionId}`)).json();
+  assert.deepStrictEqual(row.origin, { format: 'gpx', mode: 'imported' });
+  assert.deepStrictEqual(full.stage.origin, row.origin);
+  assert.deepStrictEqual(edition.stages[0].origin, row.origin);
+  assert.strictEqual(row.source, undefined, 'la liste ne transporte pas la provenance volumineuse');
+  db.prepare('INSERT INTO tracks (stage_id, geojson, router, distance_m) VALUES (?, ?, ?, ?)')
+    .run(id, JSON.stringify({ type: 'Feature', geometry: { type: 'LineString', coordinates: [[9, 42], [9, 43]] } }), 'osrm', 100000);
+  const reroutedEdition = await (await fetch(`${base}/api/editions/${editionId}`)).json();
+  const reroutedFull = await (await fetch(`${base}/api/stages/${id}`)).json();
+  const reroutedRow = (await (await fetch(`${base}/api/stages`)).json())[0];
+  assert.deepStrictEqual(reroutedEdition.stages[0].origin, { format: 'gpx', mode: 'routed' });
+  assert.deepStrictEqual(reroutedFull.stage.origin, reroutedRow.origin);
+  assert.deepStrictEqual(reroutedEdition.stages[0].origin, reroutedRow.origin);
+});

@@ -9,6 +9,7 @@ const { importEdition, importAllEditions, CATEGORIES } = require('../../pipeline
 const { historicHighlights } = require('../../pipeline/wikipedia');
 const { stagePayload, loadExportable } = require('../exports');
 const { wrap, requireString, optionalNumber } = require('../apiHelpers');
+const { originOf } = require('../../pipeline/provenance');
 
 module.exports = function register(app) {
   // ---------------------------------------------------------------- éditions / tours
@@ -108,15 +109,21 @@ module.exports = function register(app) {
         .map((r) => r.id)
     );
     const stages = db
-      .prepare('SELECT * FROM stages WHERE edition_id = ? ORDER BY stage_order, id')
+      .prepare(`SELECT s.*, t.router AS origin_router FROM stages s LEFT JOIN tracks t ON t.stage_id = s.id
+        WHERE s.edition_id = ? ORDER BY s.stage_order, s.id`)
       .all(edition.id)
-      .map((s) => ({
+      .map((s) => {
+        const row = {
         ...s,
         checks: s.checks ? JSON.parse(s.checks) : null,
         progress: s.progress ? JSON.parse(s.progress) : null,
         source: s.source ? JSON.parse(s.source) : null,
+        origin: originOf(s, { router: s.origin_router }),
         is_curated: curatedStageIds.has(s.id),
-      }));
+        };
+        delete row.origin_router;
+        return row;
+      });
     res.json({ ...edition, source: edition.source ? JSON.parse(edition.source) : null, stages });
   });
 

@@ -364,6 +364,7 @@ function loadStageFull(stageId) {
   return {
     stage: {
       ...stage,
+      origin: require('./provenance').originOf(stage, track),
       checks: stage.checks ? JSON.parse(stage.checks) : null,
       progress: stage.progress ? JSON.parse(stage.progress) : null,
       source: stage.source ? JSON.parse(stage.source) : null,

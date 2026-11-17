@@ -350,6 +350,7 @@ function stagePayload(full, { maxSamples = 600, maxTrack = 900 } = {}) {
       state: stage.state,
       checks: stage.checks,
       source: stage.source,
+      origin: stage.origin,
       is_transfer: stage.is_transfer,
     },
     waypoints: waypoints.map((w) => ({

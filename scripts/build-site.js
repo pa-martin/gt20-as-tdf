@@ -14,6 +14,7 @@ const { getDb } = require('../backend/db');
 // (revue globale du 19/10/2026), alors qu'elle sert dans un attribut alt.
 const { esc, tourToStandaloneHtml, stagePayload, ATTRIBUTIONS, loadExportable } = require('../backend/exports');
 const { stageWithoutHr, fullWithoutHr } = require('../pipeline/heartRate');
+const { originOf } = require('../pipeline/provenance');
 // fs.cpSync et fs.rmSync échouent sous Windows dans un chemin non ASCII
 // (Epic 36.1, 36.2) : copie et suppression à la main.
 const { copyDir, removeSync } = require('../pipeline/fsPortable');
@@ -93,12 +94,19 @@ function main() {
     .prepare(
       `SELECT s.id, s.name, s.date, s.stage_type, s.status, s.state, s.stage_order,
               s.official_distance_km, s.generated_distance_km, s.total_ascent_m,
-              s.edition_id, s.is_transfer, e.name AS edition_name, e.year AS edition_year
+              s.edition_id, s.is_transfer, s.source, t.router, e.name AS edition_name, e.year AS edition_year
        FROM stages s LEFT JOIN editions e ON e.id = s.edition_id
+       LEFT JOIN tracks t ON t.stage_id = s.id
        WHERE s.state = 'done'
        ORDER BY COALESCE(e.year, 9999), s.stage_order, s.id`
     )
-    .all();
+    .all()
+    .map((s) => {
+      const summary = { ...s, origin: originOf(s, s) };
+      delete summary.source;
+      delete summary.router;
+      return summary;
+    });
   writeJson('data/stages.json', stages);
   // Site publié : jamais de fréquence cardiaque (donnée de santé, Epic 30).
   // loadExportable : une trace importée publiée sur le site statique passe par
@@ -120,10 +128,15 @@ function main() {
   for (const e of editions) {
     // Commune, région et pays de départ masqués comme dans les exports
     // (zones de confidentialité, seconde relecture adverse).
-    const full = db.prepare('SELECT * FROM stages WHERE edition_id = ? ORDER BY stage_order, id').all(e.id)
+    const full = db.prepare(`SELECT s.*, t.router AS origin_router FROM stages s LEFT JOIN tracks t ON t.stage_id = s.id
+      WHERE s.edition_id = ? ORDER BY s.stage_order, s.id`).all(e.id)
       .map((s) => ({ ...s, ...hintsOf(s.id) }))
       .map(stageWithoutHr)
-      .map((s) => ({ ...s, checks: s.checks ? JSON.parse(s.checks) : null, progress: null, source: s.source ? JSON.parse(s.source) : null }));
+      .map((s) => {
+        const row = { ...s, origin: originOf(s, { router: s.origin_router }), checks: s.checks ? JSON.parse(s.checks) : null, progress: null, source: s.source ? JSON.parse(s.source) : null };
+        delete row.origin_router;
+        return row;
+      });
     writeJson(`data/edition-${e.id}.json`, { ...e, stages: full });
     const ids = full.filter((s) => s.state === 'done').map((s) => s.id);
     writeJson(`data/mapdata-${e.id}.json`, {

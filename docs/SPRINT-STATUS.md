@@ -20,6 +20,32 @@ travail **réel et déjà mergé sur `main`**, vérifié par `git log`, dépôt
 entier (pas seulement cette session). La Partie B (Epics 1-28, 25 à 28 ajoutés le 17/10/2026)
 reste la feuille de route active, à la même granularité qu'avant.
 
+## Epic 42 — Traces conservées, repères et GT20 (fork GT20)
+
+Plan approuvé le 17/11/2026. Issues ci-dessous dans
+`pa-martin/gt20-as-tdf`, distinctes des références historiques du dépôt amont.
+Un item cohérent par PR ; aucune donnée GPX GT20 privée versionnée.
+
+- [ ] 42.1 Provenance et badge GPX — issue #1. Critères : imports existants
+  reconnus dans listes et fiche ; FIT/connecteurs distincts ; un renommage
+  ou changement de type/statut ne modifie pas la provenance ; vitrine cohérente.
+- [ ] 42.2 Enregistrement sans régénération — issue #2. Critères : vraie trace
+  dans l'éditeur, métadonnées et champs vidables sans modifier les analyses ;
+  protection serveur ; reconstruction uniquement dans une copie indépendante,
+  confidentialité et mesures de l'original préservées.
+- [ ] 42.3 Points marquants — issue #3. Critères : annotations distinctes des
+  vias, ajout carte/km et édition/suppression, occurrences de boucles explicites,
+  ancrage contrôlé, altitudes inconnues conservées ; profil, exports, sauvegardes
+  et zones privées cohérents ; aucun changement de tracé.
+- [ ] 42.4 Catalogue GT20 privé — issue #4. Critères : douze étapes depuis les
+  GPX fournis, géométrie complète, lieux sourcés et réserves conservées ; import
+  idempotent sans routeur ni activité fictive ; paquet local hors versionnement.
+- [ ] 42.5 Vitrine compatible — issue #5. Critères : provenance et repères
+  consultables en lecture seule sous un sous-chemin ; aucun tracé/profil/lieu
+  privé GT20 dans les JSON, cartes, captures ou téléchargements publics.
+- [ ] 42.6 Publication GT20 — **bloquée : droits non établis**. Autorisation
+  écrite de redistribution requise avant toute publication des GPX et dérivés.
+
 ## Partie A — Travail déjà mergé sur `main` (vérifié par `git log`)
 
 Commande de référence, rejouable : `git log origin/main --oneline | wc -l`

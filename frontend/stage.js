@@ -285,6 +285,9 @@ function renderFiche() {
     FULL.track ? `routage : ${FULL.track.router}` : null,
   ].filter(Boolean).join(' · ');
   document.getElementById('st-meta').textContent = meta;
+  const originBadge = document.createElement('span');
+  originBadge.innerHTML = EF.originBadge(st.origin);
+  document.getElementById('st-meta').append(' ', originBadge);
 
   // Statistiques de la sortie — durée, vitesse moyenne/max (pipeline/rideStats.js) —
   // uniquement pour une trace importée avec horodatage exploitable (GPX <time> ou
