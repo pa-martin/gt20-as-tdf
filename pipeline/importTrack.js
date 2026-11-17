@@ -324,8 +324,9 @@ async function importTrackAsStage(points, meta = {}) {
 
     const geojson = {
       type: 'Feature',
-      properties: { name: stage.name, router: 'trace importée' },
-      geometry: { type: 'LineString', coordinates: resampled.map((p) => [p.lon, p.lat]) },
+      properties: { name: stage.name, router: 'trace importée', preserved: true },
+      geometry: { type: 'LineString', coordinates: points.map((p) =>
+        plausibleEle(p.ele) == null ? [p.lon, p.lat] : [p.lon, p.lat, p.ele]) },
     };
 
     db.transaction(() => {

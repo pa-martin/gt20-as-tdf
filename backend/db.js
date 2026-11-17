@@ -329,6 +329,15 @@ const MIGRATIONS = [
       CREATE INDEX idx_landmarks_stage ON stage_landmarks(stage_id, dist_m, id);`);
     },
   },
+  {
+    version: 12,
+    description: 'catalogues identifiés et politique de publication des étapes',
+    up(database) {
+      ensureColumn(database, 'editions', 'catalog_key', 'catalog_key TEXT');
+      database.exec('CREATE UNIQUE INDEX idx_edition_catalog ON editions(catalog_key) WHERE catalog_key IS NOT NULL');
+      ensureColumn(database, 'stages', 'publication', "publication TEXT NOT NULL DEFAULT 'public' CHECK(publication IN ('public', 'private'))");
+    },
+  },
 ];
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
 

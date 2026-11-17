@@ -26,22 +26,25 @@ Plan approuvé le 17/11/2026. Issues ci-dessous dans
 `pa-martin/gt20-as-tdf`, distinctes des références historiques du dépôt amont.
 Un item cohérent par PR ; aucune donnée GPX GT20 privée versionnée.
 
-- [ ] 42.1 Provenance et badge GPX — issue #1. Critères : imports existants
+- [x] 42.1 Provenance et badge GPX — issue #1. Critères : imports existants
   reconnus dans listes et fiche ; FIT/connecteurs distincts ; un renommage
   ou changement de type/statut ne modifie pas la provenance ; vitrine cohérente.
   Implémentée et revue : PR #6 (CI non disponible sur le fork, non fusionnée).
-- [ ] 42.2 Enregistrement sans régénération — issue #2. Critères : vraie trace
+- [x] 42.2 Enregistrement sans régénération — issue #2. Critères : vraie trace
   dans l'éditeur, métadonnées et champs vidables sans modifier les analyses ;
   protection serveur ; reconstruction uniquement dans une copie indépendante,
   confidentialité et mesures de l'original préservées.
   Implémentée et revue : PR #7, dépend de #6 ; copies masquées dès le brouillon.
-- [ ] 42.3 Points marquants — issue #3. Critères : annotations distinctes des
+- [x] 42.3 Points marquants — issue #3. Critères : annotations distinctes des
   vias, ajout carte/km et édition/suppression, occurrences de boucles explicites,
   ancrage contrôlé, altitudes inconnues conservées ; profil, exports, sauvegardes
   et zones privées cohérents ; aucun changement de tracé.
-- [ ] 42.4 Catalogue GT20 privé — issue #4. Critères : douze étapes depuis les
+  Implémentée et revue : PR #8, dépend de #7 ; 1 145 tests et interactions navigateur.
+- [x] 42.4 Catalogue GT20 privé — issue #4. Critères : douze étapes depuis les
   GPX fournis, géométrie complète, lieux sourcés et réserves conservées ; import
   idempotent sans routeur ni activité fictive ; paquet local hors versionnement.
+  Implémentée et revue : 1 149 tests ; recette privée de 16 580 points et
+  137 repères ; réserves et import Archives vérifiés sur mobile/desktop.
 - [ ] 42.5 Vitrine compatible — issue #5. Critères : provenance et repères
   consultables en lecture seule sous un sous-chemin ; aucun tracé/profil/lieu
   privé GT20 dans les JSON, cartes, captures ou téléchargements publics.

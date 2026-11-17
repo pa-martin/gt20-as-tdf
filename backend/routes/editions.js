@@ -12,6 +12,8 @@ const { wrap, requireString, optionalNumber } = require('../apiHelpers');
 const { originOf } = require('../../pipeline/provenance');
 
 module.exports = function register(app) {
+  app.get('/api/catalog/gt20', (req, res) => res.json(require('../../pipeline/gt20').catalogueStatus()));
+  app.post('/api/catalog/gt20/import', (req, res) => res.json(require('../../pipeline/gt20').importCatalogue()));
   // ---------------------------------------------------------------- éditions / tours
   app.get('/api/editions', (req, res) => {
     const db = getDb();

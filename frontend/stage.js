@@ -279,6 +279,14 @@ function setupProfileMapHover(payload, map) {
 
 function renderFiche() {
   window.EFLandmarks.display(FULL, document.getElementById('landmarks-list'));
+  const source = FULL.stage.source || {};
+  if (source.catalog_key) {
+    const note = document.getElementById('catalog-notes');
+    note.hidden = false;
+    note.textContent = `Parcours GT20 privé, pas une activité enregistrée. Distance calculée sur les GPX fournis, pas une distance officielle. ${source.attribution || ''}. ` +
+      `${source.sparse_segments?.count || 0} intervalle(s) source peu détaillé(s) documenté(s) : aucun virage inventé. ` +
+      'Les altitudes attendues et leurs sources figurent dans les lieux de passage ; un col n’est pas automatiquement une côte classée.';
+  }
   document.getElementById('loading').style.display = 'none';
   document.getElementById('fiche').style.display = 'block';
   const st = FULL.stage;
