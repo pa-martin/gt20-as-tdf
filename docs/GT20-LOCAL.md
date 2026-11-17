@@ -50,3 +50,16 @@ de l’IGN. Les annotations et la géométrie importées sont incluses dans la
 sauvegarde portable ; celle-ci contient des données privées.
 La restauration JSON accepte jusqu’à 100 Mio, après contrôle administrateur
 en mode public. Au-delà, utiliser la sauvegarde SQLite de l’instance.
+
+## Vitrine publique
+
+Le build exclut les étapes privées, les catalogues non autorisés et leurs
+copies, même déplacées dans un autre tour : listes, fiches, cartes, côtes
+et mini-sites. Le catalogue local ne propose aucune commande dans la
+vitrine en lecture seule. La politique de publication n’est pas modifiable
+par le formulaire.
+
+Si la base contient des données privées, les captures de `docs/captures`
+ne sont pas copiées : leur provenance ne peut pas être déterminée par une
+image. Les exports locaux et les sauvegardes restent accessibles à
+l’utilisateur autorisé ; ne pas les confondre avec le build public.
