@@ -16,20 +16,9 @@ const app = express();
 // pour que req.ip (utilisé par le limiteur de tentatives login/register)
 // reflète l'IP réelle du client plutôt que celle du proxy.
 if (AUTH_REQUIRED) app.set('trust proxy', 1);
-// 20mb (pas 2mb) : un dump complet pour /api/backup/import (voir plus bas)
-// dépasse vite l'ancienne limite de 2 Mo dès quelques dizaines d'étapes
-// générées (~55 Ko/étape mesuré, surtout elevation_samples — 7 étapes
-// suffisent déjà à dépasser 1,8 Mo en pratique). Un second body-parser
-// scopé à cette seule route ne fonctionne PAS : Express traite les
-// middlewares dans l'ordre d'enregistrement, donc le premier express.json()
-// qui matche le Content-Type rejette (413) une requête surdimensionnée
-// avant même d'atteindre un second parseur plus permissif plus loin dans la
-// chaîne — vérifié empiriquement avant de choisir cette approche plutôt
-// qu'un contournement par Content-Type (relecture adverse : ce contournement
-// laissait une route qui échouait silencieusement avec le Content-Type
-// standard application/json, la seule route ici qui a besoin d'un gros
-// body, donc pas de raison de complexifier les autres avec une limite plus
-// large qu'elles ne portent jamais.
+// Les parseurs spécialisés précèdent le JSON général (20 Mio conservés
+// pour compatibilité) : un parseur général placé avant eux intercepterait
+// le corps ou rejetterait les sauvegardes volumineuses avec un 413.
 // /api/import/gpx et /api/import/fit AVANT express.json() global ci-dessous :
 // body-parser marque req._body = true dès qu'un parseur dont le `type`
 // matche a lu le corps, et tout parseur suivant (même scopé, même avec

@@ -52,8 +52,16 @@ Un item cohérent par PR ; aucune donnée GPX GT20 privée versionnée.
   Implémentée et revue : 1 150 tests ; consultation sous sous-chemin en
   1440/375, aucune écriture ; build réel privé sans étape, tour, côte ou capture.
   Filiation privée normalisée, y compris les identifiants de sauvegarde en texte.
+  PR #10, dépend de #9 ; trois tests de régression vérifiés par retrait du
+  correctif dans une archive isolée : décimales GPX, sauvegarde > 20 Mio,
+  filiation privée. Rouges sans correctif, verts après restauration.
 - [ ] 42.6 Publication GT20 — **bloquée : droits non établis**. Autorisation
   écrite de redistribution requise avant toute publication des GPX et dérivés.
+
+Recette finale : cinq PR ouvertes (#6 → #10), aucune fusion ni publication
+privée. Paquet local préparé sous `data/catalogs/gt20-private/`, ignoré par
+Git ; base utilisateur non importée automatiquement. Aucun workflow `ci.yml`
+disponible sur le fork : les validations locales ne sont pas une CI verte.
 
 ## Partie A — Travail déjà mergé sur `main` (vérifié par `git log`)
 
